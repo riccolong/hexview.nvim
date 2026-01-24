@@ -49,14 +49,19 @@ R	Replace Mode: Continuously type Hex or ASCII characters to overwrite data. Pre
 ```
 ### Commands
 `:Hex`                  Open actual file in hex editor
+
 `:HexSet <columns>`     Dynamically change the number of bytes per line. Example: `:HexSet 16` (sets view to 16 bytes per line).
-`:UnHex`                Save file and open in RAW mode. 
+
+`:UnHex`                Save file and open in RAW mode.
+
 `:w`                    Save file
 
 ### Open Neovim
 
-`nvim binary.file`         Automatically activates, but RAW mode is in non binary 
+`nvim binary.file`         Automatically activates, but RAW mode is in non binary
+
 `nvim -b binary.file`      Better, RAW mode is in binary
+
 `nvim -b +Hex`             Opens any file in hex mode instantly
 
 ### ⚙️ Configuration
