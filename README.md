@@ -1,3 +1,5 @@
+![Neovim HexView](/screenshot/screen.gif)
+
 # hexview.nvim
 
 A lightweight, pure Lua hex editor for Neovim.
@@ -11,6 +13,9 @@ A lightweight, pure Lua hex editor for Neovim.
 * **Smart Editing**: Edit directly in the Hex column or the ASCII column.
 * **Visual Feedback**: Highlights modified (dirty) bytes before saving.
 * **Smart Navigation**: `h`/`l` jumps correctly between nibbles and columns, skipping separators.
+
+
+![Neovim HexView](/screenshot/screen.png)
 
 ## 📦 Installation
 
