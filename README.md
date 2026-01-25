@@ -52,6 +52,7 @@ l   Right	Move:   right (smart jump between Hex and ASCII areas)
 r	Replace Single: Replace the byte or nibble under the cursor.
 R	Replace Mode:   Continuously type Hex or ASCII characters to overwrite data. Press Esc to exit.
 /   Find:           Searching for hex strings in a file
+n   Find next:       Continue searching
 ```
 ### Commands
 `:Hex`                  Open actual file in hex editor
