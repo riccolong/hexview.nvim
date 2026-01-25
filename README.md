@@ -47,10 +47,11 @@ The plugin automatically activates when opening a binary file. You can also manu
 ### Keymaps
 Keymaps are set automatically within the hex buffer:
 ```
-h / Left	Move left (smart jump between Hex and ASCII areas)
-l / Right	Move right (smart jump between Hex and ASCII areas)
+h   Left	Move:   left (smart jump between Hex and ASCII areas)
+l   Right	Move:   right (smart jump between Hex and ASCII areas)
 r	Replace Single: Replace the byte or nibble under the cursor.
-R	Replace Mode: Continuously type Hex or ASCII characters to overwrite data. Press Esc to exit.
+R	Replace Mode:   Continuously type Hex or ASCII characters to overwrite data. Press Esc to exit.
+/   Find:           Searching for hex strings in a file
 ```
 ### Commands
 `:Hex`                  Open actual file in hex editor
@@ -80,17 +81,17 @@ quire("hexview").setup({
 ```
 
 ## 🎨 Highlights
-The plugin defines the following highlight groups, which you can override in your colorscheme:
+* The plugin defines the following highlight groups, which you can override in your colorscheme:
 
-HexViewOffset: Color of the memory address offset (left column).
+* HexViewOffset: Color of the memory address offset (left column).
 
-HexViewHeader: Color of the column headers.
+* HexViewHeader: Color of the column headers.
 
-HexViewCursor: The custom cursor highlight in Hex/ASCII columns.
+* HexViewCursor: The custom cursor highlight in Hex/ASCII columns.
 
-HexViewChanged: Highlight for modified (dirty) bytes that haven't been saved yet.
+* HexViewChanged: Highlight for modified (dirty) bytes that haven't been saved yet.
 
-HexViewModeEdit: Statusline indicator when in Replace mode.
+* HexViewModeEdit: Statusline indicator when in Replace mode.
 
 ## 🤝 Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.

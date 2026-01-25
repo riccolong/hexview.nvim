@@ -1,5 +1,5 @@
 -- ===========================================================
--- Plugin Hexadecimal Viewer and Editor
+-- Plugin Hexadecimal Viewer and Editor (Batch Rendering)
 -- Author: 	Damian V. Cechov
 -- damianvcechov@gmail.com ©2026
 -- ===========================================================
@@ -10,14 +10,14 @@ local ns = vim.api.nvim_create_namespace("hexview_ns")
 local cursor_ns = vim.api.nvim_create_namespace("hexview_cursor_ns")
 
 -- ============================================================
--- KONFIGURACE
+-- CONFIGURATION
 -- ============================================================
 M.bytes_per_line = 52
 M.ascii_start_col = 0
 M.hex_width = 0
 
 -- ============================================================
--- POMOCNÉ FUNKCE
+-- AUXILIARY FUNCTIONS
 -- ============================================================
 function M.setup_layout()
 	local width = 0
@@ -33,8 +33,20 @@ function M.setup_layout()
 	M.ascii_start_col = 10 + M.hex_width + 3
 end
 
+function M.get_byte(idx)
+	local edits = vim.b.hex_edits
+	if edits and edits[tostring(idx)] then
+		return edits[tostring(idx)]
+	end
+
+	if vim.b.hex_raw and idx <= (vim.b.hex_size or 0) then
+		return string.byte(vim.b.hex_raw, idx)
+	end
+	return nil
+end
+
 -- ============================================================
--- 1. NAČTENÍ DAT
+-- 1. FETCH DATA
 -- ============================================================
 function M.load_binary()
 	local filepath = vim.api.nvim_buf_get_name(0)
@@ -49,97 +61,114 @@ function M.load_binary()
 		data = table.concat(lines, "\n")
 	end
 
-	local t = {}
-	for i = 1, #data do
-		t[i] = data:byte(i)
-	end
-	vim.b.hex_data = t
-	vim.b.hex_dirty = {}
+	vim.b.hex_raw = data
+	vim.b.hex_size = #data
+	vim.b.hex_edits = {}
 end
 
 -- ============================================================
--- 2. RENDER ŘÁDKU
+-- 2. GEN. TEXT
 -- ============================================================
-function M.render_line(row)
-	if not vim.b.hex_data then
-		return
+
+function M.generate_line_content(row)
+	if not vim.b.hex_raw then
+		return "", {}, {}
 	end
 
 	local base = (row - 1) * M.bytes_per_line
-	local hex_parts = { string.format("%08X: ", base) }
-	local ascii_parts = {}
 
-	local dirty_ranges_hex = {}
-	local dirty_indices_ascii = {}
-	local dirty_map = vim.b.hex_dirty or {}
+	-- Optimalizace
+	local parts = {}
 
+	-- Offset header
+	table.insert(parts, string.format("%08X: ", base))
+
+	local dirty_hex_ranges = {}
+	local dirty_ascii_indices = {}
+
+	local edits = vim.b.hex_edits or {}
 	local current_hex_pos = 10
 
+	-- HEX
 	for i = 0, M.bytes_per_line - 1 do
 		local idx = base + i + 1
-		local b = vim.b.hex_data[idx]
+		local b = M.get_byte(idx)
 
 		if b then
-			local hex = string.format("%02X", b)
+			local val = tonumber(b)
+			local hex = string.format("%02X", val or 0)
 
-			if dirty_map[tostring(idx)] then
-				table.insert(dirty_ranges_hex, { current_hex_pos, current_hex_pos + 2 })
-				table.insert(dirty_indices_ascii, i)
+			if edits[tostring(idx)] ~= nil then
+				table.insert(dirty_hex_ranges, { current_hex_pos, current_hex_pos + 2 })
+				table.insert(dirty_ascii_indices, i)
 			end
 
 			if (i + 1) % 4 == 0 and (i + 1) < M.bytes_per_line then
-				table.insert(hex_parts, hex .. " | ")
+				table.insert(parts, hex .. " | ")
 				current_hex_pos = current_hex_pos + 5
 			else
-				table.insert(hex_parts, hex .. " ")
+				table.insert(parts, hex .. " ")
 				current_hex_pos = current_hex_pos + 3
 			end
-
-			local c = (b >= 32 and b <= 126) and string.char(b) or "."
-			table.insert(ascii_parts, c)
 		else
+			-- Padding
 			if (i + 1) % 4 == 0 and (i + 1) < M.bytes_per_line then
-				table.insert(hex_parts, "   | ")
+				table.insert(parts, "   | ")
 			else
-				table.insert(hex_parts, "   ")
+				table.insert(parts, "   ")
 			end
-			table.insert(ascii_parts, " ")
 		end
 	end
 
-	local hex_str = table.concat(hex_parts)
-	local ascii_str = table.concat(ascii_parts)
-	local final_line_str = hex_str .. " | " .. ascii_str
+	-- SEPARATOR
+	table.insert(parts, " | ")
+
+	-- ASCII
+	for i = 0, M.bytes_per_line - 1 do
+		local idx = base + i + 1
+		local b = M.get_byte(idx)
+		if b then
+			local val = tonumber(b)
+			local c = (val and val >= 32 and val <= 126) and string.char(val) or "."
+			table.insert(parts, c)
+		else
+			table.insert(parts, " ")
+		end
+	end
+
+	return table.concat(parts), dirty_hex_ranges, dirty_ascii_indices
+end
+
+function M.redraw_line(row)
+	local text, dirty_hex, dirty_ascii = M.generate_line_content(row)
 
 	vim.opt_local.modifiable = true
-	vim.api.nvim_buf_clear_namespace(0, -1, row - 1, row)
-	vim.api.nvim_buf_set_lines(0, row - 1, row, false, { final_line_str })
+	vim.api.nvim_buf_set_lines(0, row - 1, row, false, { text })
 
-	vim.api.nvim_buf_set_extmark(0, ns, row - 1, 0, { end_col = 9, hl_group = "HexViewOffset", priority = 100 })
+	vim.api.nvim_buf_clear_namespace(0, ns, row - 1, row)
 
-	for _, range in ipairs(dirty_ranges_hex) do
-		if range[2] <= #final_line_str then
-			vim.api.nvim_buf_set_extmark(
-				0,
-				ns,
-				row - 1,
-				range[1],
-				{ end_col = range[2], hl_group = "HexViewChanged", priority = 101 }
-			)
+	local len = #text
+	for _, range in ipairs(dirty_hex) do
+		if range[2] <= len then
+			vim.api.nvim_buf_set_extmark(0, ns, row - 1, range[1], {
+				end_col = range[2],
+				hl_group = "HexViewChanged",
+				priority = 101,
+			})
 		end
 	end
 
-	local ascii_start = #hex_str + 3
-	for _, offset_i in ipairs(dirty_indices_ascii) do
+	local hex_end_col = 10 + M.hex_width
+	local ascii_start = hex_end_col + 3
+
+	for _, offset_i in ipairs(dirty_ascii) do
 		local col = ascii_start + offset_i
-		if col < #final_line_str then
-			vim.api.nvim_buf_set_extmark(
-				0,
-				ns,
-				row - 1,
-				col,
-				{ end_col = col + 1, hl_group = "HexViewChanged", priority = 101 }
-			)
+		if col < len then
+			vim.api.nvim_buf_set_extmark(0, ns, row - 1, col, {
+				end_col = col + 1,
+				hl_group = "HexViewChanged",
+				priority = 101,
+			})
 		end
 	end
 
@@ -147,7 +176,7 @@ function M.render_line(row)
 end
 
 -- ============================================================
--- 3. LOGIKA KURZORU & ZVÝRAZNĚNÍ
+-- 3. CURSOR AND HIGHLIGHTS
 -- ============================================================
 function M.cursor_byte()
 	local row, col = unpack(vim.api.nvim_win_get_cursor(0))
@@ -225,8 +254,18 @@ function M.highlight_cursor()
 end
 
 -- ============================================================
--- 4. EDITACE (r, R)
+-- 4. EDITATION (r, R)
 -- ============================================================
+
+local function write_byte(offset, byte_val)
+	if not byte_val then
+		return false
+	end
+	local edits = vim.b.hex_edits or {}
+	edits[tostring(offset + 1)] = tonumber(byte_val)
+	vim.b.hex_edits = edits
+	return true
+end
 
 local function write_nibble(offset, nibble_idx, char)
 	local val = tonumber(char, 16)
@@ -234,8 +273,12 @@ local function write_nibble(offset, nibble_idx, char)
 		return false
 	end
 
-	local hex_data = vim.b.hex_data
-	local data = hex_data[offset + 1]
+	local raw_val = M.get_byte(offset + 1)
+	if not raw_val then
+		return false
+	end
+
+	local data = tonumber(raw_val)
 	if not data then
 		return false
 	end
@@ -249,19 +292,7 @@ local function write_nibble(offset, nibble_idx, char)
 		new_data = bit.bor(bit.band(data, 0xF0), val)
 	end
 
-	hex_data[offset + 1] = new_data
-	vim.b.hex_data = hex_data
-	return true
-end
-
-local function write_byte(offset, byte_val)
-	if not byte_val then
-		return false
-	end
-	local hex_data = vim.b.hex_data
-	hex_data[offset + 1] = byte_val
-	vim.b.hex_data = hex_data
-	return true
+	return write_byte(offset, new_data)
 end
 
 function M.replace_one()
@@ -288,11 +319,7 @@ function M.replace_one()
 	end
 
 	if changed then
-		local dirty = vim.b.hex_dirty or {}
-		dirty[tostring(offset + 1)] = true
-		vim.b.hex_dirty = dirty
-
-		M.render_line(vim.api.nvim_win_get_cursor(0)[1])
+		M.redraw_line(vim.api.nvim_win_get_cursor(0)[1])
 		vim.opt_local.modified = true
 	end
 end
@@ -330,11 +357,7 @@ function M.replace_continuous()
 		end
 
 		if changed then
-			local dirty = vim.b.hex_dirty or {}
-			dirty[tostring(offset + 1)] = true
-			vim.b.hex_dirty = dirty
-
-			M.render_line(vim.api.nvim_win_get_cursor(0)[1])
+			M.redraw_line(vim.api.nvim_win_get_cursor(0)[1])
 			vim.opt_local.modified = true
 			M.smart_move("l")
 		end
@@ -342,22 +365,20 @@ function M.replace_continuous()
 
 	vim.b.hex_replace_active = false
 	vim.cmd("redrawstatus")
-	print(" ") -- Vyčistit cmdline
+	print(" ")
 end
 
 -- ============================================================
--- 5. POHYB
+-- 5. MOVEMENT
 -- ============================================================
 function M.smart_move(key)
 	local cmd = (key == "l" or key == "<Right>") and "l" or "h"
 	local is_left = (cmd == "h")
 	local cur_row = vim.api.nvim_win_get_cursor(0)[1]
-
 	local line = vim.api.nvim_get_current_line()
 	local hex_start = 10
 	local hex_end = 10 + M.hex_width - 1
 	local ascii_start = M.ascii_start_col
-	local ascii_end = ascii_start + M.bytes_per_line
 
 	vim.cmd("normal! " .. cmd)
 	local cur_col = vim.api.nvim_win_get_cursor(0)[2]
@@ -394,7 +415,111 @@ function M.smart_move(key)
 end
 
 -- ============================================================
--- 6. KEYMAPY & UI
+-- 5.5 FIND
+-- ============================================================
+
+function M.goto_byte_offset(offset)
+	if offset > (vim.b.hex_size or 0) then
+		return
+	end
+
+	local row = math.ceil(offset / M.bytes_per_line)
+
+	local byte_in_line = (offset - 1) % M.bytes_per_line -- 0-based index v řádku
+	local col = 10
+
+	for i = 0, byte_in_line - 1 do
+		col = col + 2
+		if (i + 1) % 4 == 0 and (i + 1) < M.bytes_per_line then
+			col = col + 3 -- " | " separator
+		else
+			col = col + 1 -- " " space
+		end
+	end
+
+	vim.api.nvim_win_set_cursor(0, { row, col })
+	vim.cmd("normal! zz")
+	M.highlight_cursor()
+end
+
+function M.get_current_binary_string()
+	local size = vim.b.hex_size or 0
+	local edits = vim.b.hex_edits or {}
+
+	if next(edits) == nil then
+		return vim.b.hex_raw
+	end
+
+	local t = {}
+	for i = 1, size do
+		local b_val = M.get_byte(i)
+		table.insert(t, string.char(b_val))
+	end
+	return table.concat(t)
+end
+
+function M.find_hex_dialog()
+	vim.ui.input({ prompt = "Find HEX (e.g. AA BB 01): " }, function(input)
+		if not input or input == "" then
+			return
+		end
+
+		local clean_hex = input:gsub("[%s|]", "")
+
+		if #clean_hex % 2 ~= 0 then
+			print("HexView Error: Enter whole bytes")
+			return
+		end
+
+		local search_bytes = ""
+		for i = 1, #clean_hex, 2 do
+			local byte_str = clean_hex:sub(i, i + 1)
+			local byte_val = tonumber(byte_str, 16)
+			if not byte_val then
+				print("HexView Error: Invalid HEX characters.")
+				return
+			end
+			search_bytes = search_bytes .. string.char(byte_val)
+		end
+
+		vim.b.last_search_bytes = search_bytes
+
+		M.find_next()
+	end)
+end
+
+function M.find_next()
+	local pattern = vim.b.last_search_bytes
+	if not pattern then
+		print("HexView: No previous search pattern.")
+		return
+	end
+
+	local current_offset, _, _ = M.cursor_byte()
+	current_offset = current_offset or 1
+
+	local data = M.get_current_binary_string()
+
+	-- string.find(string, pattern, init_pos, plain_search)
+	local start_pos, end_pos = string.find(data, pattern, current_offset + 1, true)
+
+	if not start_pos then
+		-- Wrap around
+		print("HexView: The search has come to an end. Resuming from the beginning...")
+		start_pos, end_pos = string.find(data, pattern, 1, true)
+	end
+
+	if start_pos then
+		M.goto_byte_offset(start_pos)
+		local len = end_pos - start_pos + 1
+		print(string.format("Found on offset 0x%X (length %d)", start_pos, len))
+	else
+		print("HexView: None found.")
+	end
+end
+
+-- ============================================================
+-- 6. UI & STATUSLINE
 -- ============================================================
 function M.setup_keymaps()
 	local moves = { "h", "l", "<Left>", "<Right>" }
@@ -403,13 +528,19 @@ function M.setup_keymaps()
 			M.smart_move(k)
 		end, { buffer = true, silent = true })
 	end
-
 	vim.keymap.set("n", "r", function()
 		M.replace_one()
 	end, { buffer = true, silent = true })
 	vim.keymap.set("n", "R", function()
 		M.replace_continuous()
 	end, { buffer = true, silent = true })
+
+	vim.keymap.set("n", "/", function()
+		M.find_hex_dialog()
+	end, { buffer = true, silent = false, desc = "Find HEX" })
+	vim.keymap.set("n", "n", function()
+		M.find_next()
+	end, { buffer = true, silent = false, desc = "Find Next HEX" })
 
 	vim.api.nvim_buf_create_user_command(0, "HexSet", function(opts)
 		local val = tonumber(opts.args)
@@ -431,26 +562,24 @@ function M.cursor_offset_label()
 end
 
 function M.get_statusline_content()
-	-- Pokud je aktivní kontinuální přepisování, zobrazíme červeně -- REPLACE --
 	local mode_info = ""
 	if vim.b.hex_replace_active then
 		mode_info = "%#HexViewModeEdit# -- REPLACE -- %*"
 	end
-	return string.format("  %%f %%m %%= %s Sloupce: %d  %%l,%%c  %%P ", mode_info, M.bytes_per_line)
+	return string.format("  %%f %%m %%= %s Col: %d  %%l,%%c  %%P ", mode_info, M.bytes_per_line)
 end
 
 function M.setup_ui()
-	-- Barvy
 	vim.api.nvim_set_hl(0, "HexViewOffset", { fg = "#FF9E64", bold = true })
 	vim.api.nvim_set_hl(0, "HexViewHeader", { fg = "#FF9E64", bold = true })
 	vim.api.nvim_set_hl(0, "HexViewChanged", { fg = "#FF007C", bold = true })
-
-	-- Barva kurzoru (vráceno k originálu)
 	vim.api.nvim_set_hl(0, "HexViewCursor", { bg = "#330000", fg = "#FFFF00", bold = true })
 	vim.api.nvim_set_hl(0, "HexViewModeEdit", { fg = "#00FF00", bg = "#003300", bold = true })
 
-	local O, N = "%#HexViewHeader#", "%*"
+	-- !!! ZRYCHLENÍ: Použití Regex Syntax místo Extmarks pro offsety !!!
+	vim.cmd([[syntax match HexViewOffset /^[0-9A-F]\{8\}:/]])
 
+	local O, N = "%#HexViewHeader#", "%*"
 	local hex_header_parts = {}
 	for i = 0, M.bytes_per_line - 1 do
 		local hex = string.format("%02X", i)
@@ -461,7 +590,6 @@ function M.setup_ui()
 		end
 	end
 	local hex_header_str = table.concat(hex_header_parts)
-
 	local ascii_header = " | " .. O .. "ASCII" .. N
 	local header = " Offset   " .. O .. hex_header_str .. N .. ascii_header
 
@@ -470,7 +598,7 @@ function M.setup_ui()
 end
 
 -- ============================================================
--- 7. ENABLE / DISABLE / REFRESH
+-- 7. ENABLE / DISABLE / REFRESH (OPTIMIZED)
 -- ============================================================
 
 function M.set_columns(cols)
@@ -490,31 +618,38 @@ function M.refresh_view()
 	M.setup_ui()
 
 	vim.opt_local.modifiable = true
-	local total_lines = math.ceil(#vim.b.hex_data / M.bytes_per_line)
+	local size = vim.b.hex_size or 0
+	local total_lines = math.ceil(size / M.bytes_per_line)
 	if total_lines == 0 then
 		total_lines = 1
 	end
 
-	local empty_lines = {}
-	for _ = 1, total_lines do
-		table.insert(empty_lines, "")
-	end
-	vim.api.nvim_buf_set_lines(0, 0, -1, false, empty_lines)
-
+	local all_lines = {}
 	for row = 1, total_lines do
-		M.render_line(row)
+		local text = M.generate_line_content(row)
+		table.insert(all_lines, text)
 	end
+
+	vim.api.nvim_buf_set_lines(0, 0, -1, false, all_lines)
+
+	local edits = vim.b.hex_edits
+	if edits and next(edits) then
+	end
+
 	vim.opt_local.modifiable = false
 end
 
 function M.enable()
 	M.disabled_buffers[vim.api.nvim_get_current_buf()] = nil
 	M.load_binary()
-	if not vim.b.hex_data or #vim.b.hex_data == 0 then
-		vim.b.hex_data = {}
+	if not vim.b.hex_raw then
+		vim.b.hex_raw = ""
+		vim.b.hex_size = 0
 	end
-	vim.b.hex_dirty = {}
-	vim.b.hex_replace_active = false -- Inicializace stavu
+	if not vim.b.hex_edits then
+		vim.b.hex_edits = {}
+	end
+	vim.b.hex_replace_active = false
 
 	vim.opt_local.modifiable = true
 	vim.opt_local.readonly = false
@@ -546,10 +681,8 @@ function M.disable()
 
 	vim.api.nvim_clear_autocmds({ group = "HexViewCursor", buffer = 0 })
 	vim.api.nvim_buf_clear_namespace(0, cursor_ns, 0, -1)
-
 	vim.api.nvim_clear_autocmds({ event = "BufWriteCmd", buffer = 0 })
 	pcall(vim.api.nvim_buf_del_user_command, 0, "HexSet")
-
 	vim.opt_local.winbar = nil
 	vim.api.nvim_buf_clear_namespace(0, ns, 0, -1)
 	vim.cmd("edit!")
@@ -561,8 +694,9 @@ function M.disable()
 	vim.opt_local.statusline = ""
 	vim.opt_local.syntax = "off"
 	vim.bo.filetype = ""
-	vim.b.hex_data = nil
-	vim.b.hex_dirty = nil
+	vim.b.hex_raw = nil
+	vim.b.hex_edits = nil
+	vim.b.hex_size = nil
 	vim.b.hex_replace_active = nil
 	print("HexView: RAW mode.")
 end
@@ -574,20 +708,30 @@ function M.save()
 		return
 	end
 	local f = assert(io.open(name, "wb"))
-	for _, b in ipairs(vim.b.hex_data or {}) do
-		f:write(string.char(b))
+
+	local size = vim.b.hex_size or 0
+	local chunk_size = 1024 * 64
+	local buffer = {}
+
+	for i = 1, size do
+		local b = M.get_byte(i)
+		local val = tonumber(b) or 0
+		table.insert(buffer, string.char(val))
+
+		if #buffer >= chunk_size then
+			f:write(table.concat(buffer))
+			buffer = {}
+		end
+	end
+
+	if #buffer > 0 then
+		f:write(table.concat(buffer))
 	end
 	f:close()
-	vim.b.hex_dirty = {}
-	vim.opt_local.modified = false
 
-	local total_lines = math.ceil(#vim.b.hex_data / M.bytes_per_line)
-	if total_lines == 0 then
-		total_lines = 1
-	end
-	for r = 1, total_lines do
-		M.render_line(r)
-	end
+	M.load_binary()
+	M.refresh_view()
+	vim.opt_local.modified = false
 	print("Writed")
 end
 
@@ -596,7 +740,6 @@ end
 -- ============================================================
 function M.setup(config)
 	M.setup_layout()
-
 	local group = vim.api.nvim_create_augroup("HexViewAutoDetect", { clear = true })
 	vim.api.nvim_create_autocmd("BufReadPost", {
 		group = group,
